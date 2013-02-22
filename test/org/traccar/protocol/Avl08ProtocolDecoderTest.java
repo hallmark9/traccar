@@ -8,8 +8,12 @@ public class Avl08ProtocolDecoderTest {
 
     @Test
     public void testDecode() throws Exception {
-        
-        Avl08ProtocolDecoder decoder = new Avl08ProtocolDecoder(new TestDataManager());
+
+        Avl08ProtocolDecoder decoder = new Avl08ProtocolDecoder(null);
+        decoder.setDataManager(new TestDataManager());
+
+        assertNotNull(decoder.decode(null, null,
+                "$$B0456123|61$GPRMC,114725.00,A,1258.68276,N,07730.60237,E,0.410,,080113,,,A*79|1.44|0.66|1.27|000000000000|20130108114425|03600000|00000000|053C2BFE|0000|0.3325|0063|2005"));
 
         assertNull(decoder.decode(null, null,
                 "$$AE359772033395899|AA000000000000000000000000000000000000000000000000000000000000|00.0|00.0|00.0|000000000000|20090215000153|13601435|00000000|00000000|0000|0.0000|0007|2DAA"));
@@ -25,7 +29,7 @@ public class Avl08ProtocolDecoderTest {
 
         assertNotNull(decoder.decode(null, null,
                 "$$B3359772032399074|09$GPRMC,094905.000,A,3648.2229,N,01008.0976,E,0.00,,221211,,,A*71|02.1|01.3|01.7|000000000000|20111222094905|03210533|00000000|00000000|0000|0.0000|0002||FA58"));
-    
+
         assertNotNull(decoder.decode(null, null,
                 "$$B3359772032399074|AA$GPRMC,093911.000,A,3648.2146,N,01008.0977,E,0.00,,140312,,,A*7E|02.1|01.1|01.8|000000000000|20120314093910|04100057|00000000|0012D887|0000|0.0000|1128||C50E"));
 

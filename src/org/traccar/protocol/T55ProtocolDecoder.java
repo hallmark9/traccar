@@ -21,15 +21,15 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
-import org.traccar.GenericProtocolDecoder;
+import org.traccar.BaseProtocolDecoder;
+import org.traccar.ServerManager;
 import org.traccar.helper.Log;
-import org.traccar.model.DataManager;
 import org.traccar.model.Position;
 
 /**
  * T55 tracker protocol decoder
  */
-public class T55ProtocolDecoder extends GenericProtocolDecoder {
+public class T55ProtocolDecoder extends BaseProtocolDecoder {
 
     /**
      * Device ID
@@ -39,8 +39,8 @@ public class T55ProtocolDecoder extends GenericProtocolDecoder {
     /**
      * Initialize
      */
-    public T55ProtocolDecoder(DataManager dataManager) {
-        super(dataManager);
+    public T55ProtocolDecoder(ServerManager serverManager) {
+        super(serverManager);
     }
 
     /**
@@ -62,6 +62,7 @@ public class T55ProtocolDecoder extends GenericProtocolDecoder {
     /**
      * Decode message
      */
+    @Override
     protected Object decode(
             ChannelHandlerContext ctx, Channel channel, Object msg)
             throws Exception {
@@ -70,7 +71,7 @@ public class T55ProtocolDecoder extends GenericProtocolDecoder {
 
         // Detect device ID
         if (sentence.contains("$PGID")) {
-            String imei = sentence.substring(6, 6 + 15);
+            String imei = sentence.substring(6, sentence.length() - 3);
             try {
                 deviceId = getDataManager().getDeviceByImei(imei).getId();
             } catch(Exception error) {

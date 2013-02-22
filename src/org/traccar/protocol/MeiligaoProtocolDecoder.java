@@ -25,28 +25,21 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.HeapChannelBufferFactory;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
-import org.traccar.GenericProtocolDecoder;
+import org.traccar.BaseProtocolDecoder;
+import org.traccar.ServerManager;
 import org.traccar.helper.Crc;
 import org.traccar.helper.Log;
-import org.traccar.model.DataManager;
 import org.traccar.model.Position;
 
-/**
- * Meiligao protocol decoder
- */
-public class MeiligaoProtocolDecoder extends GenericProtocolDecoder {
+public class MeiligaoProtocolDecoder extends BaseProtocolDecoder {
 
-    /**
-     * Initialize
-     */
-    public MeiligaoProtocolDecoder(DataManager dataManager) {
-        super(dataManager);
+    public MeiligaoProtocolDecoder(ServerManager serverManager) {
+        super(serverManager);
     }
 
     /**
      * Regular expressions pattern
      */
-    //"155422.000,V,2230.7623,N,11403.4218,E,0.00,0,060211,,*1A|0.0|26|0000|0000,0000|0000000000000000|63|00000000"
     static private Pattern pattern = Pattern.compile(
             "(\\d{2})(\\d{2})(\\d{2})\\.(\\d{3})," + // Time (HHMMSS.SSS)
             "([AV])," +                         // Validity
@@ -58,8 +51,12 @@ public class MeiligaoProtocolDecoder extends GenericProtocolDecoder {
             "(\\d+\\.?\\d*)?," +                // Course
             "(\\d{2})(\\d{2})(\\d{2})," +       // Date (DDMMYY)
             "[^\\|]+\\|(\\d+\\.\\d)\\|" +       // Dilution of precision
-            "(\\d+)\\|" +                       // Altitude
-            "([0-9a-fA-F]+)" +                  // State
+            "(\\d+\\.?\\d*)\\|" +               // Altitude
+            "([0-9a-fA-F]+)?" +                 // State
+            "(?:\\|([0-9a-fA-F]+),([0-9a-fA-F]+))?" + // ADC
+            "(?:\\|([0-9a-fA-F]+))?" +          // Cell
+            "(?:\\|([0-9a-fA-F]+))?" +          // Signal
+            "(?:\\|([0-9a-fA-F]+))?" +          // Milage
             ".*"); // TODO: parse ADC
 
     /**
@@ -88,6 +85,7 @@ public class MeiligaoProtocolDecoder extends GenericProtocolDecoder {
     /**
      * Decode message
      */
+    @Override
     protected Object decode(
             ChannelHandlerContext ctx, Channel channel, Object msg)
             throws Exception {
@@ -132,7 +130,6 @@ public class MeiligaoProtocolDecoder extends GenericProtocolDecoder {
         StringBuilder extendedInfo = new StringBuilder("<protocol>meiligao</protocol>");
 
         // Get device by id
-        // TODO: change imei to unique id
         String id = getId(buf);
         try {
             position.setDeviceId(getDataManager().getDeviceByImei(id).getId());
@@ -204,9 +201,46 @@ public class MeiligaoProtocolDecoder extends GenericProtocolDecoder {
         }
 
         // State
-        extendedInfo.append("<state>");
-        extendedInfo.append(parser.group(index++));
-        extendedInfo.append("</state>");
+        String state = parser.group(index++);
+        if (state != null) {
+            extendedInfo.append("<state>");
+            extendedInfo.append(state);
+            extendedInfo.append("</state>");
+        }
+
+        // ADC
+        for (int i = 1; i <= 2; i++) {
+            String adc = parser.group(index++);
+            if (adc != null) {
+                extendedInfo.append("<adc").append(i).append(">");
+                extendedInfo.append(Integer.parseInt(adc, 16));
+                extendedInfo.append("</adc").append(i).append(">");
+            }
+        }
+
+        // Cell identifier
+        String cell = parser.group(index++);
+        if (cell != null) {
+            extendedInfo.append("<cell>");
+            extendedInfo.append(cell);
+            extendedInfo.append("</cell>");
+        }
+
+        // GSM signal
+        String gsm = parser.group(index++);
+        if (gsm != null) {
+            extendedInfo.append("<gsm>");
+            extendedInfo.append(Integer.parseInt(gsm, 16));
+            extendedInfo.append("</gsm>");
+        }
+
+        // Milage
+        String milage = parser.group(index++);
+        if (milage != null) {
+            extendedInfo.append("<milage>");
+            extendedInfo.append(Integer.parseInt(milage, 16));
+            extendedInfo.append("</milage>");
+        }
 
         // Extended info
         position.setExtendedInfo(extendedInfo.toString());

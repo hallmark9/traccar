@@ -21,21 +21,21 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
-import org.traccar.GenericProtocolDecoder;
+import org.traccar.BaseProtocolDecoder;
+import org.traccar.ServerManager;
 import org.traccar.helper.Log;
-import org.traccar.model.DataManager;
 import org.traccar.model.Position;
 
 /**
  * Gps 103 tracker protocol decoder
  */
-public class Gps103ProtocolDecoder extends GenericProtocolDecoder {
+public class Gps103ProtocolDecoder extends BaseProtocolDecoder {
 
     /**
      * Initialize
      */
-    public Gps103ProtocolDecoder(DataManager dataManager) {
-        super(dataManager);
+    public Gps103ProtocolDecoder(ServerManager serverManager) {
+        super(serverManager);
     }
 
     /**
@@ -45,10 +45,11 @@ public class Gps103ProtocolDecoder extends GenericProtocolDecoder {
             "imei:" +
             "(\\d+)," +                         // IMEI
             "([^,]+)," +                        // Alarm
-            "(\\d{2})(\\d{2})(\\d{2})\\d+," +   // Date
+            "(\\d{2})(\\d{2})(\\d{2})" +        // Local Date
+            "(\\d{2})(\\d{2})," +               // Local Time
             "[^,]*," +
             "[FL]," +                           // F - full / L - low
-            "(\\d{2})(\\d{2})(\\d{2})\\.(\\d{3})," + // Time (HHMMSS.SSS)
+            "(\\d{2})(\\d{2})(\\d{2})\\.(\\d{3})," + // Time UTC (HHMMSS.SSS)
             "([AV])," +                         // Validity
             "(\\d{2})(\\d{2}\\.\\d{4})," +      // Latitude (DDMM.MMMM)
             "([NS])," +
@@ -61,6 +62,7 @@ public class Gps103ProtocolDecoder extends GenericProtocolDecoder {
     /**
      * Decode message
      */
+    @Override
     protected Object decode(
             ChannelHandlerContext ctx, Channel channel, Object msg)
             throws Exception {
@@ -105,19 +107,34 @@ public class Gps103ProtocolDecoder extends GenericProtocolDecoder {
         extendedInfo.append("<alarm>");
         extendedInfo.append(parser.group(index++));
         extendedInfo.append("</alarm>");
-
+        
         // Date
         Calendar time = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
         time.clear();
         time.set(Calendar.YEAR, 2000 + Integer.valueOf(parser.group(index++)));
         time.set(Calendar.MONTH, Integer.valueOf(parser.group(index++)) - 1);
         time.set(Calendar.DAY_OF_MONTH, Integer.valueOf(parser.group(index++)));
+        
+        int localHours = Integer.valueOf(parser.group(index++));
+        int localMinutes = Integer.valueOf(parser.group(index++));
+        
+        int utcHours = Integer.valueOf(parser.group(index++));
+        int utcMinutes = Integer.valueOf(parser.group(index++));
 
         // Time
-        time.set(Calendar.HOUR, Integer.valueOf(parser.group(index++)));
-        time.set(Calendar.MINUTE, Integer.valueOf(parser.group(index++)));
+        time.set(Calendar.HOUR, localHours);
+        time.set(Calendar.MINUTE, localMinutes);
         time.set(Calendar.SECOND, Integer.valueOf(parser.group(index++)));
         time.set(Calendar.MILLISECOND, Integer.valueOf(parser.group(index++)));
+        
+        // Timezone calculation
+        int deltaMinutes = (localHours - utcHours) * 60 + localMinutes - utcMinutes;
+        if (deltaMinutes <= -12 * 60) {
+            deltaMinutes += 24 * 60;
+        } else if (deltaMinutes > 12) {
+            deltaMinutes -= 24 * 60;
+        }
+        time.add(Calendar.MINUTE, -deltaMinutes);
         position.setTime(time.getTime());
 
         // Validity
@@ -143,7 +160,7 @@ public class Gps103ProtocolDecoder extends GenericProtocolDecoder {
 
         // Speed
         position.setSpeed(Double.valueOf(parser.group(index++)));
-        
+
         // Course
         String course = parser.group(index++);
         if (course != null) {
